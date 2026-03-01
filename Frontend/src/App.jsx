@@ -1,8 +1,11 @@
+import { Routes, Route } from "react-router-dom";
+import ResidentRegister from "./pages/ResidentRegister";
+
 function App() {
   return (
-    <div>
-      <h1>Rongai House Search System</h1>
-    </div>
+    <Routes>
+      <Route path="/" element={<ResidentRegister />} />
+    </Routes>
   );
 }
 

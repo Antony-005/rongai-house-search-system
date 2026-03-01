@@ -4,12 +4,16 @@ require("dotenv").config();
 
 const authRoutes = require("./routes/authRoutes");
 
+const residentRoutes = require("./routes/residentRoutes");
+
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
 app.use("/api/auth", authRoutes);
+
+app.use("/api/residents", residentRoutes);
 
 app.get("/", (req, res) => {
   res.send("Rongai House Search API is running");

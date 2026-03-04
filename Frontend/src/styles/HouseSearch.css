@@ -1,0 +1,21 @@
+.search-container {
+  padding: 1rem;
+}
+
+.filters {
+  display: grid;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.filters input,
+.filters button {
+  padding: 0.7rem;
+}
+
+.house-card {
+  border: 1px solid #ddd;
+  padding: 1rem;
+  margin-bottom: 0.7rem;
+  border-radius: 5px;
+}

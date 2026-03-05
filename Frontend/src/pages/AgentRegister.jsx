@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import "../styles/ResidentRegister.css";
+import "../styles/AgentRegister.css";
 
-const ResidentRegister = () => {
+const AgentRegister = () => {
   const [formData, setFormData] = useState({
     full_name: "",
     email: "",
@@ -22,20 +22,16 @@ const ResidentRegister = () => {
     setMessage("");
 
     try {
-      const response = await fetch(
-        "http://localhost:5000/api/residents/register",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(formData)
-        }
-      );
+      const res = await fetch("http://localhost:5000/api/agents/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData)
+      });
 
-      const data = await response.json();
+      const data = await res.json();
       setMessage(data.message);
 
-      if (response.ok) {
-        // Redirect to login after 2s
+      if (res.ok) {
         setTimeout(() => navigate("/login"), 2000);
       }
     } catch (error) {
@@ -44,26 +40,23 @@ const ResidentRegister = () => {
   };
 
   return (
-    <div className="register-container">
-      <form className="register-form" onSubmit={handleSubmit}>
-        <h2>Resident Registration</h2>
+    <div className="agent-register-container">
+      <form className="agent-register-form" onSubmit={handleSubmit}>
+        <h2>Agent Registration</h2>
 
         <input
-          type="text"
           name="full_name"
           placeholder="Full Name"
           onChange={handleChange}
           required
         />
         <input
-          type="email"
           name="email"
-          placeholder="Email Address"
+          placeholder="Email"
           onChange={handleChange}
           required
         />
         <input
-          type="text"
           name="phone"
           placeholder="Phone Number"
           onChange={handleChange}
@@ -76,7 +69,7 @@ const ResidentRegister = () => {
           required
         />
 
-        <button type="submit">Register</button>
+        <button type="submit">Register Agent</button>
 
         {message && <p className="message">{message}</p>}
 
@@ -98,4 +91,4 @@ const ResidentRegister = () => {
   );
 };
 
-export default ResidentRegister;
+export default AgentRegister;

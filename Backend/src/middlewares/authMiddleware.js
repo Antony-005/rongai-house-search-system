@@ -1,6 +1,7 @@
 const jwt = require("jsonwebtoken");
 
-exports.verifyToken = (req, res, next) => {
+// VERIFY TOKEN
+const verifyToken = (req, res, next) => {
   const token = req.headers["authorization"];
 
   if (!token) {
@@ -11,15 +12,22 @@ exports.verifyToken = (req, res, next) => {
     if (err) {
       return res.status(401).json({ message: "Unauthorized" });
     }
+
     req.user = decoded;
     next();
   });
 };
 
 // ROLE CHECK
-exports.isAdmin = (req, res, next) => {
+const isAdmin = (req, res, next) => {
   if (req.user.role !== "admin") {
     return res.status(403).json({ message: "Admin access required" });
   }
+
   next();
+};
+
+module.exports = {
+  verifyToken,
+  isAdmin
 };

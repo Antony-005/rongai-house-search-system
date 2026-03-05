@@ -1,23 +1,22 @@
-/* ResidentRegister.css */
+/* AgentRegister.css */
 
-.register-container {
+.agent-register-container {
   min-height: 100vh;
   display: flex;
   justify-content: center;
   align-items: center;
-  background: #1f2937; /* Dark background for contrast */
+  background: #1f2937; /* Dark background */
   padding: 2rem;
-  transition: background 0.3s ease;
   font-family: 'Arial', sans-serif;
 }
 
-.register-form {
+.agent-register-form {
   width: 100%;
   max-width: 400px;
   background: #111827;
   padding: 2.5rem 2rem;
   border-radius: 12px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.2);
   color: #f9fafb;
   display: flex;
   flex-direction: column;
@@ -25,20 +24,19 @@
   transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
-.register-form:hover {
+.agent-register-form:hover {
   transform: translateY(-5px);
-  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 15px 35px rgba(0,0,0,0.3);
 }
 
-.register-form h2 {
+.agent-register-form h2 {
   text-align: center;
   margin-bottom: 1.5rem;
   font-size: 1.8rem;
   font-weight: 600;
-  color: #f9fafb;
 }
 
-.register-form input {
+.agent-register-form input {
   width: 100%;
   padding: 0.85rem;
   border: none;
@@ -50,16 +48,16 @@
   transition: background 0.3s ease, transform 0.2s ease;
 }
 
-.register-form input::placeholder {
+.agent-register-form input::placeholder {
   color: #94a3b8;
 }
 
-.register-form input:focus {
+.agent-register-form input:focus {
   background: #273449;
   transform: scale(1.02);
 }
 
-.register-form button {
+.agent-register-form button {
   width: 100%;
   padding: 0.85rem;
   background: #3b82f6;
@@ -71,7 +69,7 @@
   transition: background 0.3s ease, transform 0.2s ease;
 }
 
-.register-form button:hover {
+.agent-register-form button:hover {
   background: #2563eb;
   transform: translateY(-2px);
 }
@@ -80,7 +78,7 @@
   margin-top: 1rem;
   text-align: center;
   font-weight: 500;
-  color: #22c55e; /* Green for success */
+  color: #22c55e;
   transition: color 0.3s ease;
 }
 

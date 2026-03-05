@@ -1,0 +1,271 @@
+/* =========================
+GLOBAL RESET
+========================= */
+
+*{
+  margin:0;
+  padding:0;
+  box-sizing:border-box;
+}
+
+body{
+  font-family: "Segoe UI", Arial, sans-serif;
+}
+
+/* =========================
+PAGE WRAPPER
+========================= */
+
+.landing{
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
+}
+
+/* DARK THEME */
+
+.dark{
+  background:#0f172a;
+  color:#f1f5f9;
+}
+
+/* LIGHT THEME */
+
+.light{
+  background:#f8fafc;
+  color:#0f172a;
+}
+
+/* =========================
+NAVBAR
+========================= */
+
+.navbar{
+  width:100%;
+  max-width:1200px;
+
+  margin:0 auto;
+
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+
+  padding:20px 10px;
+}
+
+.navbar h2{
+  font-size:22px;
+  font-weight:600;
+}
+
+.nav-buttons{
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+
+/* =========================
+BUTTONS
+========================= */
+
+button{
+  border:none;
+  cursor:pointer;
+
+  padding:10px 18px;
+
+  font-size:14px;
+  border-radius:6px;
+
+  transition:all 0.2s ease;
+}
+
+/* LOGIN */
+
+.login-btn{
+  background:#2563eb;
+  color:white;
+}
+
+.login-btn:hover{
+  background:#1d4ed8;
+}
+
+/* PRIMARY */
+
+.primary-btn{
+  background:#3b82f6;
+  color:white;
+}
+
+.primary-btn:hover{
+  background:#2563eb;
+}
+
+/* SECONDARY */
+
+.secondary-btn{
+  background:#10b981;
+  color:white;
+}
+
+.secondary-btn:hover{
+  background:#059669;
+}
+
+/* =========================
+HERO SECTION
+========================= */
+
+.hero{
+  width:100%;
+  max-width:1200px;
+
+  margin:0 auto;
+
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+
+  gap:40px;
+
+  padding:80px 10px;
+}
+
+.hero h1{
+  font-size:42px;
+  margin-bottom:16px;
+}
+
+.hero p{
+  font-size:16px;
+  color:#94a3b8;
+  max-width:500px;
+}
+
+.hero-buttons{
+  margin-top:20px;
+
+  display:flex;
+  gap:12px;
+}
+
+.hero img{
+  width:420px;
+  border-radius:10px;
+}
+
+/* =========================
+FEATURES
+========================= */
+
+.features{
+  width:100%;
+  max-width:1200px;
+
+  margin:0 auto;
+
+  padding:80px 10px;
+
+  text-align:center;
+}
+
+.features h2{
+  font-size:28px;
+  margin-bottom:40px;
+}
+
+.feature-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(220px,1fr));
+  gap:20px;
+}
+
+.feature-card{
+  background:#1e293b;
+
+  padding:25px;
+
+  border-radius:8px;
+
+  text-align:left;
+
+  transition:transform .2s ease;
+}
+
+.feature-card p{
+  margin-top:8px;
+  font-size:14px;
+  color:#cbd5f5;
+}
+
+.feature-card:hover{
+  transform:translateY(-4px);
+}
+
+/* =========================
+WORKFLOW
+========================= */
+
+.workflow{
+  width:100%;
+  max-width:1200px;
+
+  margin:0 auto;
+
+  padding:80px 10px;
+
+  text-align:center;
+}
+
+.workflow h2{
+  margin-bottom:30px;
+}
+
+.steps{
+  display:flex;
+  justify-content:center;
+  gap:40px;
+  flex-wrap:wrap;
+}
+
+.step{
+  background:#1e293b;
+  padding:18px 25px;
+  border-radius:6px;
+}
+
+/* =========================
+CTA
+========================= */
+
+.cta{
+  width:100%;
+  max-width:1200px;
+
+  margin:0 auto;
+
+  padding:80px 10px;
+
+  text-align:center;
+}
+
+.cta h2{
+  margin-bottom:20px;
+}
+
+/* =========================
+FOOTER
+========================= */
+
+footer{
+  margin-top:auto;
+
+  text-align:center;
+
+  padding:25px 0;
+
+  font-size:14px;
+
+  color:#94a3b8;
+}

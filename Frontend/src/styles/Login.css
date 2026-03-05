@@ -1,17 +1,17 @@
-/* ResidentRegister.css */
+/* Login.css */
 
-.register-container {
+.login-container {
   min-height: 100vh;
   display: flex;
   justify-content: center;
   align-items: center;
-  background: #1f2937; /* Dark background for contrast */
+  background: #1f2937; /* Dark background */
   padding: 2rem;
-  transition: background 0.3s ease;
   font-family: 'Arial', sans-serif;
+  transition: background 0.3s ease;
 }
 
-.register-form {
+.login-form {
   width: 100%;
   max-width: 400px;
   background: #111827;
@@ -25,20 +25,19 @@
   transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
-.register-form:hover {
+.login-form:hover {
   transform: translateY(-5px);
   box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
 }
 
-.register-form h2 {
+.login-form h2 {
   text-align: center;
   margin-bottom: 1.5rem;
   font-size: 1.8rem;
   font-weight: 600;
-  color: #f9fafb;
 }
 
-.register-form input {
+.login-form input {
   width: 100%;
   padding: 0.85rem;
   border: none;
@@ -50,16 +49,16 @@
   transition: background 0.3s ease, transform 0.2s ease;
 }
 
-.register-form input::placeholder {
+.login-form input::placeholder {
   color: #94a3b8;
 }
 
-.register-form input:focus {
+.login-form input:focus {
   background: #273449;
   transform: scale(1.02);
 }
 
-.register-form button {
+.login-form button {
   width: 100%;
   padding: 0.85rem;
   background: #3b82f6;
@@ -71,7 +70,7 @@
   transition: background 0.3s ease, transform 0.2s ease;
 }
 
-.register-form button:hover {
+.login-form button:hover {
   background: #2563eb;
   transform: translateY(-2px);
 }
@@ -80,7 +79,7 @@
   margin-top: 1rem;
   text-align: center;
   font-weight: 500;
-  color: #22c55e; /* Green for success */
+  color: #f87171; /* Red for errors */
   transition: color 0.3s ease;
 }
 

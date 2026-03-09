@@ -3,13 +3,16 @@ const router = express.Router();
 const adminController = require("../controllers/adminController");
 const { verifyToken, isAdmin } = require("../middlewares/authMiddleware");
 
-// GET ALL HOUSES (admin only)
-router.get("/houses", verifyToken, isAdmin, adminController.getAllHouses);
+// Middleware: ensure admin
+router.use(verifyToken, isAdmin);
 
-// VERIFY HOUSE (admin only)
-router.put("/houses/:id/verify", verifyToken, isAdmin, adminController.verifyHouse);
+// View all houses
+router.get("/houses", adminController.getAllHouses);
 
-// DEACTIVATE HOUSE (admin only)
-router.put("/houses/:id/deactivate", verifyToken, isAdmin, adminController.deactivateHouse);
+// Verify a house
+router.post("/verify-house/:houseId", adminController.verifyHouse);
+
+// View all users
+router.get("/users", adminController.getAllUsers);
 
 module.exports = router;

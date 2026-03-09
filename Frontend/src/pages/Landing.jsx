@@ -57,11 +57,11 @@ const LandingPage = () => {
                 <button className="primary-btn">Register as Resident</button>
             </Link>
 
-            <a href="/agent-register">
-              <button className="secondary-btn">
-                Register as Agent
-              </button>
-            </a>
+            {/* <Link to="/register/agent">
+                <button className="secondary-btn">
+                   Register as Agent
+                </button>
+            </Link> */}
 
           </div>
 
@@ -129,11 +129,9 @@ const LandingPage = () => {
 
         <h2>Start Your Housing Search Today</h2>
 
-        <a href="/resident-register">
-          <button className="primary-btn">
-            Get Started
-          </button>
-        </a>
+        <Link to="/register/resident">
+            <button className="primary-btn">Get Started</button>
+        </Link>
 
       </section>
 

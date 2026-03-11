@@ -1,44 +1,20 @@
 const express = require("express");
 const router = express.Router();
-
 const agentController = require("../controllers/agentController");
+const { verifyToken, requireRole } = require("../middlewares/authMiddleware");
 
-const {
-  verifyToken,
-  isAdmin,
-  isAgent
-} = require("../middlewares/authMiddleware");
+// All agent routes require authentication + agent role
+router.use(verifyToken);
+router.use(requireRole("agent"));
 
+// Landlord management
+router.post("/landlords", agentController.addLandlord);
+router.get("/landlords", agentController.getMyLandlords);
 
-/* ===========================
-   ADMIN REGISTER AGENT
-=========================== */
-
-router.post(
-  "/register",
-  verifyToken,
-  isAdmin,
-  agentController.registerAgent
-);
-
-
-/* ===========================
-   AGENT ROUTES
-=========================== */
-
-router.get(
-  "/houses",
-  verifyToken,
-  isAgent,
-  agentController.getAgentHouses
-);
-
-router.get(
-  "/bookings",
-  verifyToken,
-  isAgent,
-  agentController.getAgentBookings
-);
-
+// House management
+router.post("/houses", agentController.addHouse);
+router.get("/houses", agentController.getMyHouses);
+router.put("/houses/:id", agentController.updateHouse);
+router.patch("/houses/:id/deactivate", agentController.deactivateHouse);
 
 module.exports = router;

@@ -1,18 +1,17 @@
 const express = require("express");
 const router = express.Router();
 const residentController = require("../controllers/residentController");
-const { verifyToken } = require("../middlewares/authMiddleware");
+const { verifyToken, requireRole } = require("../middlewares/authMiddleware");
 
-// REGISTER RESIDENT (no auth required)
+// Public
 router.post("/register", residentController.registerResident);
 
-// BOOK HOUSE (auth required)
-router.post("/book", verifyToken, residentController.bookHouse);
+// Protected — resident only
+router.use(verifyToken);
+router.use(requireRole("resident"));
 
-// GET BOOKINGS (auth required)
-router.get("/bookings", verifyToken, residentController.getBookings);
-
-// DASHBOARD STATS (auth required)
-router.get("/stats", verifyToken, residentController.getResidentStats);
+router.post("/bookings", residentController.createBooking);
+router.get("/bookings", residentController.getMyBookings);
+router.get("/stats", residentController.getResidentStats);
 
 module.exports = router;

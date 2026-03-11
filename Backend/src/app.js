@@ -13,10 +13,15 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Auth (register + login for all roles)
 app.use("/api/auth", authRoutes);
-app.use("/api/residents", residentRoutes);
-app.use("/api/agents", agentRoutes);
+
+// Role-specific routes
+app.use("/api/resident", residentRoutes);   // was /api/residents — now singular to match frontend
+app.use("/api/agent", agentRoutes);
 app.use("/api/admin", adminRoutes);
+
+// Public house listings
 app.use("/api/houses", houseRoutes);
 
 app.get("/", (req, res) => {

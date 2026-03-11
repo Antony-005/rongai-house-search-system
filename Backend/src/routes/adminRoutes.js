@@ -1,18 +1,25 @@
 const express = require("express");
 const router = express.Router();
 const adminController = require("../controllers/adminController");
-const { verifyToken, isAdmin } = require("../middlewares/authMiddleware");
+const { verifyToken, requireRole } = require("../middlewares/authMiddleware");
 
-// Middleware: ensure admin
-router.use(verifyToken, isAdmin);
+// All admin routes require authentication + admin role
+router.use(verifyToken);
+router.use(requireRole("admin"));
 
-// View all houses
-router.get("/houses", adminController.getAllHouses);
+// House management
+// NOTE: /houses/pending must be defined BEFORE /houses/:id
+// to prevent Express matching "pending" as an :id parameter
+router.get("/houses/pending", adminController.getPendingVerifications);
+router.get("/houses", adminController.getAllHousesAdmin);
+router.patch("/houses/:id/verify", adminController.verifyHouse);
+router.patch("/houses/:id/reject", adminController.rejectHouse);
 
-// Verify a house
-router.post("/verify-house/:houseId", adminController.verifyHouse);
+// Agent management
+router.get("/agents", adminController.getAllAgents);
 
-// View all users
-router.get("/users", adminController.getAllUsers);
+// Booking management
+router.get("/bookings", adminController.getAllBookings);
+router.patch("/bookings/:id/status", adminController.updateBookingStatus);
 
 module.exports = router;

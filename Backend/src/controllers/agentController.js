@@ -1,7 +1,6 @@
 const db = require("../config/db");
 
 // ─── HELPER ──────────────────────────────────────────────────────────────────
-// Gets the agent record id for the currently logged-in user
 const getAgentId = async (userId) => {
   const [rows] = await db.query(
     "SELECT id FROM agents WHERE user_id = ?",
@@ -75,7 +74,6 @@ exports.addHouse = async (req, res) => {
   try {
     const agentId = await getAgentId(req.user.id);
 
-    // Verify this landlord belongs to this agent
     const [landlordCheck] = await db.query(
       "SELECT id FROM landlords WHERE id = ? AND agent_id = ?",
       [landlord_id, agentId]
@@ -193,6 +191,111 @@ exports.deactivateHouse = async (req, res) => {
       return res.status(403).json({ message: "Agent profile not found." });
     }
     console.error("deactivateHouse error:", err);
+    res.status(500).json({ message: "Server error." });
+  }
+};
+
+// ─── PAYMENT MANAGEMENT ──────────────────────────────────────────────────────
+
+// POST /api/agent/payments
+// Agent logs a payment received from a landlord
+exports.addPayment = async (req, res) => {
+  const { landlord_id, amount, description } = req.body;
+
+  if (!landlord_id || !amount) {
+    return res.status(400).json({ message: "Landlord and amount are required." });
+  }
+
+  if (isNaN(amount) || Number(amount) <= 0) {
+    return res.status(400).json({ message: "Amount must be a positive number." });
+  }
+
+  try {
+    const agentId = await getAgentId(req.user.id);
+
+    // Verify the landlord belongs to this agent
+    const [landlordCheck] = await db.query(
+      "SELECT id, full_name FROM landlords WHERE id = ? AND agent_id = ?",
+      [landlord_id, agentId]
+    );
+
+    if (landlordCheck.length === 0) {
+      return res.status(403).json({ message: "This landlord does not belong to you." });
+    }
+
+    const [result] = await db.query(
+      `INSERT INTO payments (landlord_id, agent_id, amount, description)
+       VALUES (?, ?, ?, ?)`,
+      [landlord_id, agentId, Number(amount), description || null]
+    );
+
+    res.status(201).json({
+      message: "Payment recorded successfully.",
+      paymentId: result.insertId,
+    });
+  } catch (err) {
+    if (err.message === "AGENT_NOT_FOUND") {
+      return res.status(403).json({ message: "Agent profile not found." });
+    }
+    console.error("addPayment error:", err);
+    res.status(500).json({ message: "Server error." });
+  }
+};
+
+// GET /api/agent/payments
+// Agent views all their payment records with totals
+exports.getMyPayments = async (req, res) => {
+  try {
+    const agentId = await getAgentId(req.user.id);
+
+    const [payments] = await db.query(
+      `SELECT p.id, p.amount, p.description, p.payment_date,
+              l.full_name AS landlord_name, l.phone AS landlord_phone
+       FROM payments p
+       JOIN landlords l ON p.landlord_id = l.id
+       WHERE p.agent_id = ?
+       ORDER BY p.payment_date DESC`,
+      [agentId]
+    );
+
+    // Compute total collected
+    const total = payments.reduce((sum, p) => sum + Number(p.amount), 0);
+
+    res.status(200).json({ payments, total });
+  } catch (err) {
+    if (err.message === "AGENT_NOT_FOUND") {
+      return res.status(403).json({ message: "Agent profile not found." });
+    }
+    console.error("getMyPayments error:", err);
+    res.status(500).json({ message: "Server error." });
+  }
+};
+
+// GET /api/agent/payments/summary
+// Per-landlord payment summary for the agent
+exports.getPaymentSummary = async (req, res) => {
+  try {
+    const agentId = await getAgentId(req.user.id);
+
+    const [summary] = await db.query(
+      `SELECT l.id AS landlord_id, l.full_name AS landlord_name, l.phone,
+              COUNT(p.id) AS total_payments,
+              COALESCE(SUM(p.amount), 0) AS total_paid,
+              MAX(p.payment_date) AS last_payment_date
+       FROM landlords l
+       LEFT JOIN payments p ON p.landlord_id = l.id AND p.agent_id = ?
+       WHERE l.agent_id = ?
+       GROUP BY l.id, l.full_name, l.phone
+       ORDER BY total_paid DESC`,
+      [agentId, agentId]
+    );
+
+    res.status(200).json({ summary });
+  } catch (err) {
+    if (err.message === "AGENT_NOT_FOUND") {
+      return res.status(403).json({ message: "Agent profile not found." });
+    }
+    console.error("getPaymentSummary error:", err);
     res.status(500).json({ message: "Server error." });
   }
 };

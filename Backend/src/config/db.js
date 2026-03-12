@@ -7,4 +7,4 @@ const db = mysql.createPool({
   database: "rongai_house_search"
 });
 
-module.exports = db;
+module.exports = db.promise();

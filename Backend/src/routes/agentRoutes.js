@@ -17,4 +17,11 @@ router.get("/houses", agentController.getMyHouses);
 router.put("/houses/:id", agentController.updateHouse);
 router.patch("/houses/:id/deactivate", agentController.deactivateHouse);
 
+// Payment management
+// NOTE: /payments/summary must be defined BEFORE /payments
+// to prevent Express matching "summary" as a param
+router.get("/payments/summary", agentController.getPaymentSummary);
+router.post("/payments", agentController.addPayment);
+router.get("/payments", agentController.getMyPayments);
+
 module.exports = router;

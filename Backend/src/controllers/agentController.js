@@ -72,7 +72,8 @@ exports.addHouse = async (req, res) => {
   }
 
   try {
-    const agentId = await getAgentId(req.user.id);
+    const agentId   = await getAgentId(req.user.id);
+    const image_url = req.file ? `/uploads/${req.file.filename}` : null;
 
     const [landlordCheck] = await db.query(
       "SELECT id FROM landlords WHERE id = ? AND agent_id = ?",
@@ -84,9 +85,11 @@ exports.addHouse = async (req, res) => {
     }
 
     const [result] = await db.query(
-      `INSERT INTO houses (landlord_id, title, location, price, bedrooms, bathrooms, description, status, is_verified)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'available', FALSE)`,
-      [landlord_id, title, location, price, bedrooms || null, bathrooms || null, description || null]
+      `INSERT INTO houses
+        (agent_id, landlord_id, title, location, price, bedrooms, bathrooms, description, image_url, status, is_verified)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'available', FALSE)`,
+      [agentId, landlord_id, title, location, price,
+       bedrooms || null, bathrooms || null, description || null, image_url]
     );
 
     res.status(201).json({
@@ -134,22 +137,28 @@ exports.updateHouse = async (req, res) => {
   try {
     const agentId = await getAgentId(req.user.id);
 
-    const [ownerCheck] = await db.query(
-      `SELECT h.id FROM houses h
+    // Confirm ownership via landlord relationship
+    const [[house]] = await db.query(
+      `SELECT h.id, h.image_url FROM houses h
        JOIN landlords l ON h.landlord_id = l.id
        WHERE h.id = ? AND l.agent_id = ?`,
       [houseId, agentId]
     );
 
-    if (ownerCheck.length === 0) {
+    if (!house) {
       return res.status(403).json({ message: "You do not own this listing." });
     }
 
+    // Preserve old image if no new file uploaded
+    const image_url = req.file ? `/uploads/${req.file.filename}` : house.image_url;
+
     await db.query(
       `UPDATE houses
-       SET title=?, location=?, price=?, bedrooms=?, bathrooms=?, description=?, is_verified=FALSE
+       SET title=?, location=?, price=?, bedrooms=?, bathrooms=?,
+           description=?, image_url=?, is_verified=FALSE
        WHERE id=?`,
-      [title, location, price, bedrooms || null, bathrooms || null, description || null, houseId]
+      [title, location, price, bedrooms || null, bathrooms || null,
+       description || null, image_url, houseId]
     );
 
     res.status(200).json({ message: "House updated. Re-verification required." });
@@ -195,10 +204,91 @@ exports.deactivateHouse = async (req, res) => {
   }
 };
 
+// ─── BOOKING MANAGEMENT ──────────────────────────────────────────────────────
+
+// GET /api/agent/bookings
+exports.getMyBookings = async (req, res) => {
+  try {
+    const agentId = await getAgentId(req.user.id);
+
+    const [bookings] = await db.query(
+      `SELECT b.id, b.status, b.notes, b.booking_date,
+              h.title AS house_title, h.location,
+              u.full_name AS resident_name, u.phone AS resident_phone
+       FROM bookings b
+       JOIN houses  h ON b.house_id    = h.id
+       JOIN users   u ON b.resident_id = u.id
+       WHERE h.agent_id = ?
+       ORDER BY b.booking_date DESC`,
+      [agentId]
+    );
+
+    res.json(bookings);
+  } catch (err) {
+    if (err.message === "AGENT_NOT_FOUND") {
+      return res.status(403).json({ message: "Agent profile not found." });
+    }
+    console.error("getMyBookings error:", err);
+    res.status(500).json({ error: "Failed to fetch bookings" });
+  }
+};
+
+// PATCH /api/agent/bookings/:id/status
+exports.updateBookingStatus = async (req, res) => {
+  const { id }     = req.params;
+  const { status } = req.body;
+
+  if (!["approved", "rejected"].includes(status)) {
+    return res.status(400).json({ error: "Invalid status" });
+  }
+
+  try {
+    const agentId = await getAgentId(req.user.id);
+
+    // Confirm booking belongs to this agent's house
+    const [[booking]] = await db.query(
+      `SELECT b.id, b.house_id
+       FROM bookings b
+       JOIN houses h ON b.house_id = h.id
+       WHERE b.id = ? AND h.agent_id = ?`,
+      [id, agentId]
+    );
+
+    if (!booking) {
+      return res.status(404).json({ error: "Booking not found or not yours" });
+    }
+
+    await db.query(
+      "UPDATE bookings SET status = ? WHERE id = ?",
+      [status, id]
+    );
+
+    // Sync house status
+    if (status === "approved") {
+      await db.query(
+        "UPDATE houses SET status = 'booked' WHERE id = ?",
+        [booking.house_id]
+      );
+    } else {
+      await db.query(
+        "UPDATE houses SET status = 'available' WHERE id = ?",
+        [booking.house_id]
+      );
+    }
+
+    res.json({ message: `Booking ${status}` });
+  } catch (err) {
+    if (err.message === "AGENT_NOT_FOUND") {
+      return res.status(403).json({ message: "Agent profile not found." });
+    }
+    console.error("updateBookingStatus error:", err);
+    res.status(500).json({ error: "Failed to update booking status" });
+  }
+};
+
 // ─── PAYMENT MANAGEMENT ──────────────────────────────────────────────────────
 
 // POST /api/agent/payments
-// Agent logs a payment received from a landlord
 exports.addPayment = async (req, res) => {
   const { landlord_id, amount, description } = req.body;
 
@@ -213,7 +303,6 @@ exports.addPayment = async (req, res) => {
   try {
     const agentId = await getAgentId(req.user.id);
 
-    // Verify the landlord belongs to this agent
     const [landlordCheck] = await db.query(
       "SELECT id, full_name FROM landlords WHERE id = ? AND agent_id = ?",
       [landlord_id, agentId]
@@ -243,7 +332,6 @@ exports.addPayment = async (req, res) => {
 };
 
 // GET /api/agent/payments
-// Agent views all their payment records with totals
 exports.getMyPayments = async (req, res) => {
   try {
     const agentId = await getAgentId(req.user.id);
@@ -258,7 +346,6 @@ exports.getMyPayments = async (req, res) => {
       [agentId]
     );
 
-    // Compute total collected
     const total = payments.reduce((sum, p) => sum + Number(p.amount), 0);
 
     res.status(200).json({ payments, total });
@@ -272,7 +359,6 @@ exports.getMyPayments = async (req, res) => {
 };
 
 // GET /api/agent/payments/summary
-// Per-landlord payment summary for the agent
 exports.getPaymentSummary = async (req, res) => {
   try {
     const agentId = await getAgentId(req.user.id);

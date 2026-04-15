@@ -9,6 +9,7 @@ const adminRoutes = require("./routes/adminRoutes");
 const houseRoutes = require("./routes/houseRoutes");
 
 const app = express();
+const path = require('path');
 
 app.use(cors());
 app.use(express.json());
@@ -17,12 +18,14 @@ app.use(express.json());
 app.use("/api/auth", authRoutes);
 
 // Role-specific routes
-app.use("/api/resident", residentRoutes);   // was /api/residents — now singular to match frontend
+app.use("/api/resident", residentRoutes);   
 app.use("/api/agent", agentRoutes);
 app.use("/api/admin", adminRoutes);
 
 // Public house listings
 app.use("/api/houses", houseRoutes);
+
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 app.get("/", (req, res) => {
   res.send("Rongai House Search API is running");

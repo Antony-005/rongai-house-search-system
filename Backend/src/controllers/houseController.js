@@ -54,6 +54,23 @@ exports.getAllHouses = async (req, res) => {
   }
 };
 
+exports.getPublicHouses = async (req, res) => {
+  try {
+    const [houses] = await db.query(
+      `SELECT id, title, location, price, bedrooms, bathrooms,
+              description, status, image_url
+       FROM houses
+       WHERE is_verified = TRUE AND status = 'available'
+       ORDER BY created_at DESC
+       LIMIT 12`
+    );
+    res.json(houses);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch public listings' });
+  }
+};
+
 // GET /api/houses/:id
 // Public: single verified house detail
 exports.getHouseById = async (req, res) => {

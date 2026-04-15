@@ -1,4 +1,52 @@
 const db = require("../config/db");
+const bcrypt = require('bcryptjs');
+
+exports.createAgent = async (req, res) => {
+  try {
+    const { full_name, email, phone, password, assigned_area } = req.body;
+
+    if (!full_name || !email || !phone || !password) {
+      return res.status(400).json({ error: 'All fields are required' });
+    }
+
+    // Check email not already taken
+    const [[existing]] = await db.query('SELECT id FROM users WHERE email = ?', [email]);
+    if (existing) return res.status(409).json({ error: 'Email already registered' });
+
+    const hashed = await bcrypt.hash(password, 10);
+
+    // Create user with role_id = 2
+    const [userResult] = await db.query(
+      `INSERT INTO users (full_name, email, phone, password, role_id)
+       VALUES (?, ?, ?, ?, 2)`,
+      [full_name, email, phone, hashed]
+    );
+
+    // Create agent record
+    await db.query(
+      `INSERT INTO agents (user_id, assigned_area) VALUES (?, ?)`,
+      [userResult.insertId, assigned_area || 'Rongai']
+    );
+
+    res.status(201).json({ message: 'Agent created successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to create agent' });
+  }
+};
+
+exports.getAgents = async (req, res) => {
+  try {
+    const [agents] = await db.query(
+      `SELECT a.id, u.full_name, u.email, u.phone, a.assigned_area, a.created_at
+       FROM agents a JOIN users u ON a.user_id = u.id
+       ORDER BY a.created_at DESC`
+    );
+    res.json(agents);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch agents' });
+  }
+};
 
 // ─── HOUSE MANAGEMENT ────────────────────────────────────────────────────────
 
@@ -423,5 +471,168 @@ exports.getAgentsReport = async (req, res) => {
   } catch (err) {
     console.error("getAgentsReport error:", err);
     res.status(500).json({ message: "Server error." });
+  }
+};
+
+const { createPDF, addTable } = require('../utils/pdfGenerator');
+
+exports.pdfOverview = async (req, res) => {
+  try {
+    const [[users]]    = await db.query('SELECT COUNT(*) AS total FROM users');
+    const [[houses]]   = await db.query('SELECT COUNT(*) AS total FROM houses');
+    const [[bookings]] = await db.query('SELECT COUNT(*) AS total FROM bookings');
+    const [[agents]]   = await db.query('SELECT COUNT(*) AS total FROM agents');
+
+    const [[available]] = await db.query(
+      "SELECT COUNT(*) AS total FROM houses WHERE status = 'available' AND is_verified = TRUE"
+    );
+    const [[booked]] = await db.query(
+      "SELECT COUNT(*) AS total FROM houses WHERE status = 'booked'"
+    );
+    const [[pending]] = await db.query(
+      "SELECT COUNT(*) AS total FROM bookings WHERE status = 'pending'"
+    );
+    const [[approved]] = await db.query(
+      "SELECT COUNT(*) AS total FROM bookings WHERE status = 'approved'"
+    );
+
+    createPDF(res, 'System Overview Report', (doc) => {
+      doc.fontSize(12).font('Helvetica-Bold').text('System Summary');
+      doc.moveDown(0.5);
+
+      addTable(doc,
+        ['Metric', 'Count'],
+        [
+          ['Total Registered Users', users.total],
+          ['Total Housing Agents',   agents.total],
+          ['Total House Listings',   houses.total],
+          ['Available Houses',       available.total],
+          ['Booked Houses',          booked.total],
+          ['Total Booking Requests', bookings.total],
+          ['Pending Bookings',       pending.total],
+          ['Approved Bookings',      approved.total],
+        ],
+        [350, 145]
+      );
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to generate PDF' });
+  }
+};
+
+exports.pdfHouses = async (req, res) => {
+  try {
+    const [houses] = await db.query(
+      `SELECT h.title, h.location, h.price, h.bedrooms,
+              h.status, h.is_verified,
+              u.full_name AS agent_name
+       FROM houses h
+       JOIN agents a ON h.agent_id = a.id
+       JOIN users  u ON a.user_id  = u.id
+       ORDER BY h.created_at DESC`
+    );
+
+    createPDF(res, 'House Listings Report', (doc) => {
+      doc.fontSize(12).font('Helvetica-Bold').text(`Total Listings: ${houses.length}`);
+      doc.moveDown(0.5);
+
+      addTable(doc,
+        ['Title', 'Location', 'Price (KES)', 'Beds', 'Status', 'Verified', 'Agent'],
+        houses.map(h => [
+          h.title,
+          h.location,
+          Number(h.price).toLocaleString(),
+          h.bedrooms,
+          h.status,
+          h.is_verified ? 'Yes' : 'No',
+          h.agent_name,
+        ]),
+        [120, 80, 70, 30, 60, 50, 85]
+      );
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to generate PDF' });
+  }
+};
+
+exports.pdfBookings = async (req, res) => {
+  try {
+    const [bookings] = await db.query(
+      `SELECT b.id, b.status, b.booking_date,
+              h.title AS house, h.location,
+              u.full_name AS resident, u.phone
+       FROM bookings b
+       JOIN houses h ON b.house_id    = h.id
+       JOIN users  u ON b.resident_id = u.id
+       ORDER BY b.booking_date DESC`
+    );
+
+    const pending  = bookings.filter(b => b.status === 'pending').length;
+    const approved = bookings.filter(b => b.status === 'approved').length;
+    const rejected = bookings.filter(b => b.status === 'rejected').length;
+
+    createPDF(res, 'Booking Activity Report', (doc) => {
+      doc.fontSize(11).font('Helvetica')
+         .text(`Total: ${bookings.length}  |  Pending: ${pending}  |  Approved: ${approved}  |  Rejected: ${rejected}`);
+      doc.moveDown(0.5);
+
+      addTable(doc,
+        ['#', 'House', 'Location', 'Resident', 'Phone', 'Date', 'Status'],
+        bookings.map((b, i) => [
+          i + 1,
+          b.house,
+          b.location,
+          b.resident,
+          b.phone,
+          new Date(b.booking_date).toLocaleDateString(),
+          b.status,
+        ]),
+        [25, 110, 80, 100, 70, 65, 55]
+      );
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to generate PDF' });
+  }
+};
+
+exports.pdfAgents = async (req, res) => {
+  try {
+    const [agents] = await db.query(
+      `SELECT u.full_name, u.email, u.phone, a.assigned_area,
+              COUNT(DISTINCT h.id)  AS total_listings,
+              COUNT(DISTINCT b.id)  AS total_bookings,
+              COALESCE(SUM(p.amount), 0) AS total_payments
+       FROM agents a
+       JOIN users  u ON a.user_id   = u.id
+       LEFT JOIN houses   h ON h.agent_id  = a.id
+       LEFT JOIN bookings b ON b.house_id  = h.id
+       LEFT JOIN payments p ON p.agent_id  = a.id
+       GROUP BY a.id, u.full_name, u.email, u.phone, a.assigned_area
+       ORDER BY total_listings DESC`
+    );
+
+    createPDF(res, 'Agent Performance Report', (doc) => {
+      doc.fontSize(12).font('Helvetica-Bold').text(`Total Agents: ${agents.length}`);
+      doc.moveDown(0.5);
+
+      addTable(doc,
+        ['Agent Name', 'Email', 'Area', 'Listings', 'Bookings', 'Payments (KES)'],
+        agents.map(a => [
+          a.full_name,
+          a.email,
+          a.assigned_area,
+          a.total_listings,
+          a.total_bookings,
+          Number(a.total_payments).toLocaleString(),
+        ]),
+        [110, 130, 70, 50, 55, 80]
+      );
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to generate PDF' });
   }
 };

@@ -175,7 +175,7 @@ const ResidentRegister = () => {
             <div className="form-group">
               <label htmlFor="phone">
                 Phone Number
-                <span className="form-optional"> (optional)</span>
+                <span className="form-optional"> </span>
               </label>
               <div className="form-input-wrap">
                 <span className="form-input-icon">📞</span>

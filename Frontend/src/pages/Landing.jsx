@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion, useInView } from "framer-motion";
 import "../styles/LandingPage.css";
@@ -15,7 +15,7 @@ const stagger = {
 
 /* ─── Animated section wrapper ────────────────────────────────── */
 function RevealSection({ children, className }) {
-  const ref = useRef(null);
+  const ref    = useRef(null);
   const inView = useInView(ref, { once: true, margin: "-80px" });
 
   return (
@@ -57,17 +57,21 @@ const features = [
 
 /* ─── How it works steps ──────────────────────────────────────── */
 const steps = [
-  { num: "01", label: "Create Account", desc: "Register as a resident in under a minute." },
+  { num: "01", label: "Create Account",  desc: "Register as a resident in under a minute." },
   { num: "02", label: "Browse Listings", desc: "Search verified houses in your price range." },
-  { num: "03", label: "Book a Viewing", desc: "Submit a booking request directly online." },
-  { num: "04", label: "Move In", desc: "Confirm and move into your new Rongai home." },
+  { num: "03", label: "Book a Viewing",  desc: "Submit a booking request directly online." },
+  { num: "04", label: "Move In",         desc: "Confirm and move into your new Rongai home." },
 ];
 
 /* ─── Main component ──────────────────────────────────────────── */
 const LandingPage = () => {
   const navigate = useNavigate();
 
-  // If already logged in, redirect to the correct dashboard
+  /* ── Public listings state ── */
+  const [publicHouses, setPublicHouses] = useState([]);
+  const [listingsLoading, setListingsLoading] = useState(true);
+
+  /* ── Redirect logged-in users to their dashboard ── */
   useEffect(() => {
     const token = localStorage.getItem("token");
     const role  = localStorage.getItem("role");
@@ -75,6 +79,17 @@ const LandingPage = () => {
       navigate(`/${role}`, { replace: true });
     }
   }, [navigate]);
+
+  /* ── Fetch public listings (no auth required) ── */
+  useEffect(() => {
+    fetch("http://localhost:5000/api/houses/public")
+      .then((r) => r.json())
+      .then((data) => {
+        setPublicHouses(Array.isArray(data) ? data : []);
+        setListingsLoading(false);
+      })
+      .catch(() => setListingsLoading(false));
+  }, []);
 
   return (
     <div className="lp-root">
@@ -87,19 +102,19 @@ const LandingPage = () => {
         </Link>
 
         <nav className="lp-nav__links">
-          <a href="#features" className="lp-nav__link">Features</a>
+          <a href="#listings"     className="lp-nav__link">Houses</a>
+          <a href="#features"     className="lp-nav__link">Features</a>
           <a href="#how-it-works" className="lp-nav__link">How It Works</a>
         </nav>
 
         <div className="lp-nav__actions">
-          <Link to="/login" className="lp-nav__login">Login</Link>
-          <Link to="/register/resident" className="lp-nav__cta">Get Started</Link>
+          <Link to="/login"              className="lp-nav__login">Login</Link>
+          <Link to="/register/resident"  className="lp-nav__cta">Get Started</Link>
         </div>
       </header>
 
       {/* ── HERO ────────────────────────────────────────────────── */}
       <section className="lp-hero">
-        {/* Decorative background blobs */}
         <div className="lp-hero__blob lp-hero__blob--1" />
         <div className="lp-hero__blob lp-hero__blob--2" />
 
@@ -143,14 +158,13 @@ const LandingPage = () => {
             transition={{ duration: 0.7, delay: 0.4 }}
           >
             <Link to="/register/resident" className="btn btn--primary btn--lg">
-              Get Started — It's Free
+              Get Started, It's Free
             </Link>
             <Link to="/login" className="btn btn--outline btn--lg">
               Login to Account
             </Link>
           </motion.div>
 
-          {/* Trust badges */}
           <motion.div
             className="lp-hero__trust"
             variants={fadeUp}
@@ -164,7 +178,6 @@ const LandingPage = () => {
           </motion.div>
         </div>
 
-        {/* Hero image */}
         <motion.div
           className="lp-hero__image-wrap"
           initial={{ opacity: 0, x: 50 }}
@@ -176,18 +189,15 @@ const LandingPage = () => {
               src="/assets/images/hero-image.jpg"
               alt="Modern house in Rongai"
               className="lp-hero__img"
-              /* Fallback gradient shown until real image is placed */
               onError={(e) => { e.target.style.display = "none"; }}
             />
-            {/* Placeholder shown when image is missing */}
             <div className="lp-hero__img-placeholder">
               <span>🏡</span>
-              <p>hero-image.jpg</p>
-              <small>Replace with stock photo</small>
+              <p></p>
+              <small>Welcome Home</small>
             </div>
           </div>
 
-          {/* Floating stat cards */}
           <div className="lp-hero__stat lp-hero__stat--listings">
             <strong>200+</strong>
             <span>Verified Listings</span>
@@ -197,6 +207,100 @@ const LandingPage = () => {
             <span>Satisfaction Rate</span>
           </div>
         </motion.div>
+      </section>
+
+      {/* ── PUBLIC LISTINGS ─────────────────────────────────────── */}
+      {/* NEW SECTION — inserted between Hero and Features          */}
+      <section className="lp-listings" id="listings">
+        <RevealSection>
+          <motion.div className="lp-section-label" variants={fadeUp}>
+            Available Now
+          </motion.div>
+          <motion.h2 className="lp-section-title" variants={fadeUp}>
+            Browse verified houses in Rongai
+          </motion.h2>
+          <motion.p className="lp-section-sub" variants={fadeUp}>
+            These listings are live and available today. Register to search,
+            filter, and book any property.
+          </motion.p>
+        </RevealSection>
+
+        {listingsLoading && (
+          <p className="lp-listings__loading">Loading listings…</p>
+        )}
+
+        {!listingsLoading && publicHouses.length === 0 && (
+          <p className="lp-listings__empty">
+            No listings available right now. Check back soon.
+          </p>
+        )}
+
+        {!listingsLoading && publicHouses.length > 0 && (
+          <RevealSection className="lp-listings__grid">
+            {publicHouses.map((h) => (
+              <motion.div key={h.id} className="lp-listing-card" variants={fadeUp}>
+                {/* Image */}
+                {h.image_url ? (
+                  <img
+                    src={`http://localhost:5000${h.image_url}`}
+                    alt={h.title}
+                    className="lp-listing-card__img"
+                  />
+                ) : (
+                  <div className="lp-listing-card__img-placeholder">
+                    <span>🏠</span>
+                  </div>
+                )}
+
+                {/* Body */}
+                <div className="lp-listing-card__body">
+                  <span className="lp-listing-card__badge">✓ Verified</span>
+                  <h3 className="lp-listing-card__title">{h.title}</h3>
+
+                  <p className="lp-listing-card__location">
+                    📍 {h.location}
+                  </p>
+
+                  <p className="lp-listing-card__price">
+                    KES {Number(h.price).toLocaleString()}
+                    <span className="lp-listing-card__per"> / mo</span>
+                  </p>
+
+                  <div className="lp-listing-card__meta">
+                    <span>🛏 {h.bedrooms} bed</span>
+                    <span>🚿 {h.bathrooms} bath</span>
+                    <span className="lp-listing-card__status lp-listing-card__status--available">
+                      Available
+                    </span>
+                  </div>
+
+                  <button
+                    className="btn btn--primary lp-listing-card__cta"
+                    onClick={() => navigate("/login")}
+                  >
+                    Login to Book
+                  </button>
+                </div>
+              </motion.div>
+            ))}
+          </RevealSection>
+        )}
+
+        {/* View all prompt */}
+        {!listingsLoading && publicHouses.length > 0 && (
+          <motion.div
+            className="lp-listings__footer"
+            variants={fadeUp}
+            initial="hidden"
+            animate="visible"
+            transition={{ delay: 0.4 }}
+          >
+            <p>Want to see all listings and use search filters?</p>
+            <Link to="/register/resident" className="btn btn--primary">
+              Register for Full Access
+            </Link>
+          </motion.div>
+        )}
       </section>
 
       {/* ── FEATURES ────────────────────────────────────────────── */}
@@ -262,7 +366,9 @@ const LandingPage = () => {
       {/* ── HOW IT WORKS ────────────────────────────────────────── */}
       <section className="lp-how" id="how-it-works">
         <RevealSection>
-          <motion.div className="lp-section-label" variants={fadeUp}>How It Works</motion.div>
+          <motion.div className="lp-section-label" variants={fadeUp}>
+            How It Works
+          </motion.div>
           <motion.h2 className="lp-section-title" variants={fadeUp}>
             From sign-up to move-in, in four steps
           </motion.h2>
@@ -308,6 +414,7 @@ const LandingPage = () => {
             <p>Connecting Rongai residents with verified rental homes.</p>
           </div>
           <div className="lp-footer__links">
+            <a href="#listings">Houses</a>
             <a href="#features">Features</a>
             <a href="#how-it-works">How It Works</a>
             <Link to="/login">Login</Link>
@@ -315,7 +422,7 @@ const LandingPage = () => {
           </div>
         </div>
         <div className="lp-footer__bottom">
-          <p>© 2026 Rongai New-House Search System. All rights reserved.</p>
+          <p>© 2026 RongaiHomes — Africa Nazarene University · CSC 430</p>
         </div>
       </footer>
 

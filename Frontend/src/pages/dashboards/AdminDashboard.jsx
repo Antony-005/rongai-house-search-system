@@ -7,6 +7,29 @@ const authHeaders = () => ({
   Authorization: `Bearer ${localStorage.getItem("token")}`,
 });
 
+// ── CSV Download Utility ───────────────────────────────────────────────────────
+function downloadCSV(filename, headers, rows) {
+  const escape = (val) => {
+    if (val === null || val === undefined) return "";
+    const str = String(val);
+    return str.includes(",") || str.includes('"') || str.includes("\n")
+      ? `"${str.replace(/"/g, '""')}"`
+      : str;
+  };
+  const csvContent = [
+    headers.join(","),
+    ...rows.map(row => row.map(escape).join(",")),
+  ].join("\n");
+
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 // ── Shared UI ──────────────────────────────────────────────────────────────────
 
 function StatCard({ label, value, color, icon, sub }) {
@@ -92,7 +115,6 @@ function Td({ children, bold, muted, green, nowrap }) {
   );
 }
 
-// ── Mini bar chart (CSS only, no library needed) ───────────────────────────────
 function BarChart({ data, labelKey, valueKey, color = "#4361ee", formatValue }) {
   if (!data || data.length === 0) return <div style={{ color: "#94a3b8", fontSize: 13, padding: "12px 0" }}>No data available.</div>;
   const max = Math.max(...data.map(d => Number(d[valueKey])), 1);
@@ -119,7 +141,6 @@ function BarChart({ data, labelKey, valueKey, color = "#4361ee", formatValue }) 
   );
 }
 
-// ── Donut stat row ─────────────────────────────────────────────────────────────
 function StatRow({ items }) {
   return (
     <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
@@ -136,7 +157,6 @@ function StatRow({ items }) {
   );
 }
 
-// ── Report section card ────────────────────────────────────────────────────────
 function ReportCard({ title, children }) {
   return (
     <div style={{ background: "#fff", borderRadius: 12, padding: 24, boxShadow: "0 2px 12px rgba(0,0,0,0.06)", marginBottom: 20 }}>
@@ -145,6 +165,19 @@ function ReportCard({ title, children }) {
     </div>
   );
 }
+
+// ── Download Button ────────────────────────────────────────────────────────────
+function DownloadBtn({ onClick, label = "⬇ Download CSV" }) {
+  return (
+    <button onClick={onClick} style={{
+      padding: "9px 20px", borderRadius: 8, border: "1.5px solid #2563eb",
+      cursor: "pointer", fontSize: 13, fontWeight: 600,
+      background: "#eff6ff", color: "#2563eb", transition: "all 0.2s"
+    }}>{label}</button>
+  );
+}
+
+
 
 // ── REPORTS TAB ────────────────────────────────────────────────────────────────
 function ReportsTab() {
@@ -179,19 +212,156 @@ function ReportsTab() {
     { key: "agents",   label: "👥 Agents" },
   ];
 
-  const houseBadgeMap = (status, verified) => {
-    if (status === "inactive") return { label: "Inactive", bg: "#fee2e2", color: "#dc2626" };
-    if (!verified)             return { label: "Pending",  bg: "#fef9c3", color: "#ca8a04" };
-    if (status === "booked")   return { label: "Booked",   bg: "#dbeafe", color: "#2563eb" };
-    return { label: "Available", bg: "#dcfce7", color: "#16a34a" };
+  // ── Download handlers ────────────────────────────────────────────────────────
+
+  const downloadOverview = () => {
+    if (!overview) return;
+    const date = new Date().toLocaleDateString("en-KE");
+    downloadCSV(`rongai-overview-report-${date}.csv`,
+      ["Metric", "Value"],
+      [
+        ["Report Date", date],
+        [""],
+        ["--- USERS ---", ""],
+        ["Total Users", overview.users.total],
+        ["Residents", overview.users.residents],
+        ["Agents", overview.users.agents],
+        ["Landlords", overview.users.landlords],
+        [""],
+        ["--- HOUSES ---", ""],
+        ["Total Listings", overview.houses.total],
+        ["Available (Verified)", overview.houses.available],
+        ["Booked", overview.houses.booked],
+        ["Pending Verification", overview.houses.pending_verification],
+        ["Inactive", overview.houses.inactive],
+        [""],
+        ["--- BOOKINGS ---", ""],
+        ["Total Bookings", overview.bookings.total],
+        ["Pending", overview.bookings.pending],
+        ["Approved", overview.bookings.approved],
+        ["Rejected", overview.bookings.rejected],
+        [""],
+        ["--- PAYMENTS ---", ""],
+        ["Total Payment Records", overview.payments.total_records],
+        ["Total Amount Collected (KES)", overview.payments.total_collected],
+      ]
+    );
   };
 
-  const handlePrint = () => window.print();
+  const downloadHouses = () => {
+    if (!housesReport) return;
+    const date = new Date().toLocaleDateString("en-KE");
+
+    // Status breakdown sheet
+    downloadCSV(`rongai-houses-report-${date}.csv`,
+      ["Section", "Label", "Count"],
+      [
+        ...housesReport.statusBreakdown.map(s => [
+          "Status Breakdown",
+          `${s.status}${s.is_verified ? " (Verified)" : " (Unverified)"}`,
+          s.count,
+        ]),
+        ["", "", ""],
+        ...housesReport.priceRanges.map(p => ["Price Range", p.price_range, p.count]),
+        ["", "", ""],
+        ...housesReport.topLocations.map(l => ["Top Location", l.location, l.count]),
+        ["", "", ""],
+        ...housesReport.bedroomDist.map(b => ["Bedroom Distribution", `${b.bedrooms} Bedroom(s)`, b.count]),
+        ["", "", ""],
+        ...housesReport.listingsOverTime.map(m => ["Listings Over Time", m.month, m.count]),
+      ]
+    );
+  };
+
+  const downloadBookings = () => {
+    if (!bookingsReport) return;
+    const date = new Date().toLocaleDateString("en-KE");
+
+    const rows = [
+      // Status dist
+      ...bookingsReport.statusDist.map(s => ["Booking Status", s.status, s.count, "", "", "", ""]),
+      ["", "", "", "", "", "", ""],
+      // Over time
+      ...bookingsReport.bookingsOverTime.map(m => ["Bookings Over Time", m.month, m.total, "", "", "", ""]),
+      ["", "", "", "", "", "", ""],
+      // Top houses header
+      ["Most Requested Houses", "Title", "Location", "Price (KES/mo)", "Total Requests", "Approved", ""],
+      ...bookingsReport.topHouses.map(h => ["", h.title, h.location, h.price, h.total_bookings, h.approved_bookings, ""]),
+      ["", "", "", "", "", "", ""],
+      // Top residents header
+      ["Most Active Residents", "Name", "Email", "Phone", "Total Bookings", "", ""],
+      ...bookingsReport.topResidents.map(r => ["", r.full_name, r.email, r.phone || "—", r.total_bookings, "", ""]),
+    ];
+
+    downloadCSV(`rongai-bookings-report-${date}.csv`,
+      ["Section", "Col 1", "Col 2", "Col 3", "Col 4", "Col 5", "Col 6"],
+      rows
+    );
+  };
+
+  const downloadAgents = () => {
+    if (!agentsReport) return;
+    const date = new Date().toLocaleDateString("en-KE");
+
+    downloadCSV(`rongai-agents-report-${date}.csv`,
+      ["Agent Name", "Email", "Area", "Landlords", "Total Listings", "Active Listings", "Booked Listings", "Total Payments", "Total Collected (KES)", "Joined"],
+      agentsReport.agentPerformance.map(a => [
+        a.agent_name,
+        a.email,
+        a.assigned_area || "—",
+        a.total_landlords,
+        a.total_listings,
+        a.active_listings,
+        a.booked_listings,
+        a.total_payments,
+        a.total_collected,
+        new Date(a.joined_date).toLocaleDateString("en-KE"),
+      ])
+    );
+  };
+
+  // ── PDF Download ─────────────────────────────────────────────────────────────
+const downloadPDF = async (type) => {
+  try {
+    const res = await fetch(
+      `${API}/admin/reports/pdf/${type}`,
+      { headers: authHeaders() }
+    );
+
+    if (!res.ok) throw new Error("PDF generation failed");
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `rongai-${type}-report-${new Date().toISOString().slice(0,10)}.pdf`;
+    a.click();
+
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error(err);
+  }
+};
+
+  const downloadMap = {
+    overview: downloadOverview,
+    houses:   downloadHouses,
+    bookings: downloadBookings,
+    agents:   downloadAgents,
+  };
+
+  const downloadPDFMap = {
+  overview: () => downloadPDF("overview"),
+  houses:   () => downloadPDF("houses"),
+  bookings: () => downloadPDF("bookings"),
+  agents:   () => downloadPDF("agents"),
+};
 
   return (
     <div>
-      {/* Report sub-tabs */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 24, flexWrap: "wrap" }}>
+      {/* Report sub-tabs + action buttons */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 24, flexWrap: "wrap", alignItems: "center" }}>
         {reportTabs.map(t => (
           <button key={t.key} onClick={() => setReportTab(t.key)} style={{
             padding: "9px 20px", borderRadius: 8, border: "none", cursor: "pointer",
@@ -202,11 +372,48 @@ function ReportsTab() {
             transition: "all 0.2s"
           }}>{t.label}</button>
         ))}
-        <button onClick={handlePrint} style={{
-          marginLeft: "auto", padding: "9px 20px", borderRadius: 8,
-          border: "1.5px solid #e2e8f0", cursor: "pointer",
-          fontSize: 13, fontWeight: 600, background: "#fff", color: "#475569"
-        }}>🖨 Print Report</button>
+
+        {/* Action buttons pushed to the right */}
+        <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+  
+  {/* CSV */}
+  <DownloadBtn onClick={downloadMap[reportTab]} />
+
+  {/* PDF */}
+  <button
+    onClick={downloadPDFMap[reportTab]}
+    style={{
+      padding: "9px 20px",
+      borderRadius: 8,
+      border: "1.5px solid #7c3aed",
+      cursor: "pointer",
+      fontSize: 13,
+      fontWeight: 600,
+      background: "#f5f3ff",
+      color: "#7c3aed"
+    }}
+  >
+    ⬇ Download PDF
+  </button>
+
+  {/* Print */}
+  <button
+    onClick={() => window.print()}
+    style={{
+      padding: "9px 20px",
+      borderRadius: 8,
+      border: "1.5px solid #e2e8f0",
+      cursor: "pointer",
+      fontSize: 13,
+      fontWeight: 600,
+      background: "#fff",
+      color: "#475569"
+    }}
+  >
+    🖨 Print
+  </button>
+
+</div>
       </div>
 
       {loading && (
@@ -279,24 +486,18 @@ function ReportsTab() {
               <ReportCard title="Listings by Status">
                 {(() => {
                   const statusData = [
-                    { label: "Available (Verified)", value: housesReport.statusBreakdown.find(s => s.status === "available" && s.is_verified)?.count || 0, color: "#16a34a" },
-                    { label: "Booked",               value: housesReport.statusBreakdown.find(s => s.status === "booked")?.count   || 0, color: "#2563eb" },
-                    { label: "Pending Verification", value: housesReport.statusBreakdown.find(s => s.status === "available" && !s.is_verified)?.count || 0, color: "#d97706" },
-                    { label: "Inactive",             value: housesReport.statusBreakdown.find(s => s.status === "inactive")?.count  || 0, color: "#dc2626" },
+                    { label: "Available (Verified)", value: housesReport.statusBreakdown.find(s => s.status === "available" && s.is_verified)?.count || 0 },
+                    { label: "Booked",               value: housesReport.statusBreakdown.find(s => s.status === "booked")?.count || 0 },
+                    { label: "Pending Verification", value: housesReport.statusBreakdown.find(s => s.status === "available" && !s.is_verified)?.count || 0 },
+                    { label: "Inactive",             value: housesReport.statusBreakdown.find(s => s.status === "inactive")?.count || 0 },
                   ];
                   return <BarChart data={statusData} labelKey="label" valueKey="value" color="#4361ee" />;
                 })()}
               </ReportCard>
             </div>
-
             <div style={{ flex: 1, minWidth: 260 }}>
               <ReportCard title="Price Range Distribution">
-                <BarChart
-                  data={housesReport.priceRanges}
-                  labelKey="price_range"
-                  valueKey="count"
-                  color="#7c3aed"
-                />
+                <BarChart data={housesReport.priceRanges} labelKey="price_range" valueKey="count" color="#7c3aed" />
               </ReportCard>
             </div>
           </div>
@@ -304,38 +505,21 @@ function ReportsTab() {
           <div style={{ display: "flex", gap: 20, flexWrap: "wrap", marginBottom: 20 }}>
             <div style={{ flex: 1, minWidth: 260 }}>
               <ReportCard title="Top Locations">
-                <BarChart
-                  data={housesReport.topLocations}
-                  labelKey="location"
-                  valueKey="count"
-                  color="#0891b2"
-                />
+                <BarChart data={housesReport.topLocations} labelKey="location" valueKey="count" color="#0891b2" />
               </ReportCard>
             </div>
-
             <div style={{ flex: 1, minWidth: 260 }}>
               <ReportCard title="Bedroom Distribution">
-                <BarChart
-                  data={housesReport.bedroomDist}
-                  labelKey="bedrooms"
-                  valueKey="count"
-                  color="#16a34a"
-                />
+                <BarChart data={housesReport.bedroomDist} labelKey="bedrooms" valueKey="count" color="#16a34a" />
               </ReportCard>
             </div>
           </div>
 
           <ReportCard title="Listings Added Over Time (Last 6 Months)">
-            {housesReport.listingsOverTime.length === 0 ? (
-              <div style={{ color: "#94a3b8", fontSize: 13 }}>No data for the last 6 months.</div>
-            ) : (
-              <BarChart
-                data={housesReport.listingsOverTime}
-                labelKey="month"
-                valueKey="count"
-                color="#4361ee"
-              />
-            )}
+            {housesReport.listingsOverTime.length === 0
+              ? <div style={{ color: "#94a3b8", fontSize: 13 }}>No data for the last 6 months.</div>
+              : <BarChart data={housesReport.listingsOverTime} labelKey="month" valueKey="count" color="#4361ee" />
+            }
           </ReportCard>
         </>
       )}
@@ -353,66 +537,61 @@ function ReportsTab() {
                 ]} />
               </ReportCard>
             </div>
-
             <div style={{ flex: 2, minWidth: 300 }}>
               <ReportCard title="Booking Activity (Last 6 Months)">
-                {bookingsReport.bookingsOverTime.length === 0 ? (
-                  <div style={{ color: "#94a3b8", fontSize: 13 }}>No bookings in the last 6 months.</div>
-                ) : (
-                  <BarChart
-                    data={bookingsReport.bookingsOverTime}
-                    labelKey="month"
-                    valueKey="total"
-                    color="#2563eb"
-                  />
-                )}
+                {bookingsReport.bookingsOverTime.length === 0
+                  ? <div style={{ color: "#94a3b8", fontSize: 13 }}>No bookings in the last 6 months.</div>
+                  : <BarChart data={bookingsReport.bookingsOverTime} labelKey="month" valueKey="total" color="#2563eb" />
+                }
               </ReportCard>
             </div>
           </div>
 
           <ReportCard title="Most Requested Houses">
-            {bookingsReport.topHouses.length === 0 ? (
-              <div style={{ color: "#94a3b8", fontSize: 13 }}>No booking data yet.</div>
-            ) : (
-              <TableWrap>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <thead><tr>{["House", "Location", "Price (KES/mo)", "Total Requests", "Approved"].map(h => <Th key={h}>{h}</Th>)}</tr></thead>
-                  <tbody>
-                    {bookingsReport.topHouses.map((h, i) => (
-                      <tr key={i}>
-                        <Td bold>{h.title}</Td>
-                        <Td>{h.location}</Td>
-                        <Td>{Number(h.price).toLocaleString()}</Td>
-                        <Td bold>{h.total_bookings}</Td>
-                        <Td green>{h.approved_bookings}</Td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </TableWrap>
-            )}
+            {bookingsReport.topHouses.length === 0
+              ? <div style={{ color: "#94a3b8", fontSize: 13 }}>No booking data yet.</div>
+              : (
+                <TableWrap>
+                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                    <thead><tr>{["House", "Location", "Price (KES/mo)", "Total Requests", "Approved"].map(h => <Th key={h}>{h}</Th>)}</tr></thead>
+                    <tbody>
+                      {bookingsReport.topHouses.map((h, i) => (
+                        <tr key={i}>
+                          <Td bold>{h.title}</Td>
+                          <Td>{h.location}</Td>
+                          <Td>{Number(h.price).toLocaleString()}</Td>
+                          <Td bold>{h.total_bookings}</Td>
+                          <Td green>{h.approved_bookings}</Td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </TableWrap>
+              )
+            }
           </ReportCard>
 
           <ReportCard title="Most Active Residents">
-            {bookingsReport.topResidents.length === 0 ? (
-              <div style={{ color: "#94a3b8", fontSize: 13 }}>No resident activity yet.</div>
-            ) : (
-              <TableWrap>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <thead><tr>{["Resident", "Email", "Phone", "Total Bookings"].map(h => <Th key={h}>{h}</Th>)}</tr></thead>
-                  <tbody>
-                    {bookingsReport.topResidents.map((r, i) => (
-                      <tr key={i}>
-                        <Td bold>{r.full_name}</Td>
-                        <Td muted>{r.email}</Td>
-                        <Td muted>{r.phone || "—"}</Td>
-                        <Td bold>{r.total_bookings}</Td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </TableWrap>
-            )}
+            {bookingsReport.topResidents.length === 0
+              ? <div style={{ color: "#94a3b8", fontSize: 13 }}>No resident activity yet.</div>
+              : (
+                <TableWrap>
+                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                    <thead><tr>{["Resident", "Email", "Phone", "Total Bookings"].map(h => <Th key={h}>{h}</Th>)}</tr></thead>
+                    <tbody>
+                      {bookingsReport.topResidents.map((r, i) => (
+                        <tr key={i}>
+                          <Td bold>{r.full_name}</Td>
+                          <Td muted>{r.email}</Td>
+                          <Td muted>{r.phone || "—"}</Td>
+                          <Td bold>{r.total_bookings}</Td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </TableWrap>
+              )
+            }
           </ReportCard>
         </>
       )}
@@ -421,54 +600,47 @@ function ReportsTab() {
       {!loading && reportTab === "agents" && agentsReport && (
         <>
           <ReportCard title="Landlord Recruitment (Last 6 Months)">
-            {agentsReport.recruitmentOverTime.length === 0 ? (
-              <div style={{ color: "#94a3b8", fontSize: 13 }}>No recruitment data in the last 6 months.</div>
-            ) : (
-              <BarChart
-                data={agentsReport.recruitmentOverTime}
-                labelKey="month"
-                valueKey="count"
-                color="#7c3aed"
-              />
-            )}
+            {agentsReport.recruitmentOverTime.length === 0
+              ? <div style={{ color: "#94a3b8", fontSize: 13 }}>No recruitment data in the last 6 months.</div>
+              : <BarChart data={agentsReport.recruitmentOverTime} labelKey="month" valueKey="count" color="#7c3aed" />
+            }
           </ReportCard>
 
           <ReportCard title="Agent Performance Table">
-            {agentsReport.agentPerformance.length === 0 ? (
-              <div style={{ color: "#94a3b8", fontSize: 13 }}>No agents registered yet.</div>
-            ) : (
-              <TableWrap>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <thead>
-                    <tr>
-                      {["Agent", "Area", "Landlords", "Listings", "Active", "Booked", "Payments", "Collected (KES)", "Joined"].map(h => <Th key={h}>{h}</Th>)}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {agentsReport.agentPerformance.map((a, i) => (
-                      <tr key={i}>
-                        <td style={{ padding: "12px 16px", borderTop: "1px solid #f1f5f9" }}>
-                          <div style={{ fontWeight: 700, fontSize: 13, color: "#0f172a" }}>{a.agent_name}</div>
-                          <div style={{ fontSize: 11, color: "#94a3b8" }}>{a.email}</div>
-                        </td>
-                        <Td muted>{a.assigned_area || "—"}</Td>
-                        <Td bold>{a.total_landlords}</Td>
-                        <Td>{a.total_listings}</Td>
-                        <Td green>{a.active_listings}</Td>
-                        <td style={{ padding: "12px 16px", borderTop: "1px solid #f1f5f9" }}>
-                          <span style={{ background: "#dbeafe", color: "#2563eb", borderRadius: 20, padding: "2px 10px", fontSize: 12, fontWeight: 600 }}>{a.booked_listings}</span>
-                        </td>
-                        <Td>{a.total_payments}</Td>
-                        <Td bold green>
-                          {Number(a.total_collected).toLocaleString()}
-                        </Td>
-                        <Td muted nowrap>{new Date(a.joined_date).toLocaleDateString()}</Td>
+            {agentsReport.agentPerformance.length === 0
+              ? <div style={{ color: "#94a3b8", fontSize: 13 }}>No agents registered yet.</div>
+              : (
+                <TableWrap>
+                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr>
+                        {["Agent", "Area", "Landlords", "Listings", "Active", "Booked", "Payments", "Collected (KES)", "Joined"].map(h => <Th key={h}>{h}</Th>)}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </TableWrap>
-            )}
+                    </thead>
+                    <tbody>
+                      {agentsReport.agentPerformance.map((a, i) => (
+                        <tr key={i}>
+                          <td style={{ padding: "12px 16px", borderTop: "1px solid #f1f5f9" }}>
+                            <div style={{ fontWeight: 700, fontSize: 13, color: "#0f172a" }}>{a.agent_name}</div>
+                            <div style={{ fontSize: 11, color: "#94a3b8" }}>{a.email}</div>
+                          </td>
+                          <Td muted>{a.assigned_area || "—"}</Td>
+                          <Td bold>{a.total_landlords}</Td>
+                          <Td>{a.total_listings}</Td>
+                          <Td green>{a.active_listings}</Td>
+                          <td style={{ padding: "12px 16px", borderTop: "1px solid #f1f5f9" }}>
+                            <span style={{ background: "#dbeafe", color: "#2563eb", borderRadius: 20, padding: "2px 10px", fontSize: 12, fontWeight: 600 }}>{a.booked_listings}</span>
+                          </td>
+                          <Td>{a.total_payments}</Td>
+                          <Td bold green>{Number(a.total_collected).toLocaleString()}</Td>
+                          <Td muted nowrap>{new Date(a.joined_date).toLocaleDateString()}</Td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </TableWrap>
+              )
+            }
           </ReportCard>
         </>
       )}
@@ -482,6 +654,15 @@ export default function AdminDashboard() {
   const [pendingHouses, setPendingHouses] = useState([]);
   const [allHouses, setAllHouses]         = useState([]);
   const [agents, setAgents]               = useState([]);
+  const [showCreateAgent, setShowCreateAgent] = useState(false);
+const [agentError, setAgentError] = useState('');
+const [newAgent, setNewAgent] = useState({
+  full_name: '',
+  email: '',
+  phone: '',
+  password: '',
+  assigned_area: 'Rongai'
+});
   const [bookings, setBookings]           = useState([]);
   const [payments, setPayments]           = useState([]);
   const [paymentsSummary, setPaymentsSummary] = useState([]);
@@ -540,10 +721,40 @@ export default function AdminDashboard() {
     setActionLoading(null);
   };
 
+  const handleCreateAgent = async (e) => {
+  e.preventDefault();
+  setAgentError('');
+
+  try {
+    const res = await fetch(`${API}/admin/agents`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(newAgent),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) throw new Error(data.error || 'Failed to create agent');
+
+    setShowCreateAgent(false);
+    setNewAgent({
+      full_name: '',
+      email: '',
+      phone: '',
+      password: '',
+      assigned_area: 'Rongai'
+    });
+
+    fetchAgents();
+    notify("Agent created successfully!");
+  } catch (err) {
+    setAgentError(err.message);
+  }
+};
+
   const verifiedCount   = allHouses.filter(h => h.is_verified).length;
   const pendingCount    = pendingHouses.length;
   const pendingBookings = bookings.filter(b => b.status === "pending").length;
-  const inactiveCount   = allHouses.filter(h => h.status === "inactive").length;
 
   const houseBadge = (h) => {
     if (h.status === "inactive") return { label: "Inactive",  bg: "#fee2e2", color: "#dc2626" };
@@ -561,6 +772,12 @@ export default function AdminDashboard() {
     { key: "agents",        label: "👥 Agents" },
     { key: "reports",       label: "📈 Reports" },
   ];
+
+  const tabTitles = {
+    overview: "Admin Overview", verifications: "Pending Verifications",
+    bookings: "Booking Management", payments: "Payment Records",
+    "all-houses": "All House Listings", agents: "Agent Management", reports: "System Reports"
+  };
 
   return (
     <div style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Segoe UI', sans-serif" }}>
@@ -609,7 +826,7 @@ export default function AdminDashboard() {
         <main style={{ flex: 1, padding: 32, overflowX: "auto", minWidth: 0 }}>
           <div style={{ marginBottom: 24 }}>
             <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: "#0f172a" }}>
-              {{ overview: "Admin Overview", verifications: "Pending Verifications", bookings: "Booking Management", payments: "Payment Records", "all-houses": "All House Listings", agents: "Agent Management", reports: "System Reports" }[tab]}
+              {tabTitles[tab]}
             </h1>
           </div>
 
@@ -626,7 +843,6 @@ export default function AdminDashboard() {
               </div>
 
               <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
-                {/* Pending verifications */}
                 <div style={{ flex: 1, minWidth: 260, background: "#fff", borderRadius: 12, padding: 24, boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
                     <SectionTitle>Awaiting Verification</SectionTitle>
@@ -647,7 +863,6 @@ export default function AdminDashboard() {
                   {pendingCount === 0 && <p style={{ color: "#94a3b8", fontSize: 13 }}>All listings reviewed ✅</p>}
                 </div>
 
-                {/* Pending bookings */}
                 <div style={{ flex: 1, minWidth: 260, background: "#fff", borderRadius: 12, padding: 24, boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
                     <SectionTitle>Pending Bookings</SectionTitle>
@@ -668,7 +883,6 @@ export default function AdminDashboard() {
                   {pendingBookings === 0 && <p style={{ color: "#94a3b8", fontSize: 13 }}>No pending bookings ✅</p>}
                 </div>
 
-                {/* Recent payments */}
                 <div style={{ flex: 1, minWidth: 260, background: "#fff", borderRadius: 12, padding: 24, boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
                     <SectionTitle>Recent Payments</SectionTitle>
@@ -732,8 +946,7 @@ export default function AdminDashboard() {
                         <Td muted>{b.notes ? `"${b.notes}"` : "—"}</Td>
                         <Td muted nowrap>{new Date(b.booking_date).toLocaleDateString()}</Td>
                         <td style={{ padding: "12px 16px", borderTop: "1px solid #f1f5f9" }}>
-                          <Badge
-                            label={b.status}
+                          <Badge label={b.status}
                             bg={b.status === "approved" ? "#dcfce7" : b.status === "rejected" ? "#fee2e2" : "#fef9c3"}
                             color={b.status === "approved" ? "#16a34a" : b.status === "rejected" ? "#dc2626" : "#ca8a04"}
                           />
@@ -775,7 +988,6 @@ export default function AdminDashboard() {
                   </div>
                 </div>
               )}
-
               <TableWrap>
                 <div style={{ padding: "16px 20px", borderBottom: "1px solid #f1f5f9" }}><SectionTitle>All Payment Records</SectionTitle></div>
                 {payments.length === 0 ? <EmptyState icon="💰" title="No payments recorded yet" /> : (
@@ -828,28 +1040,146 @@ export default function AdminDashboard() {
           )}
 
           {/* ── AGENTS ── */}
-          {tab === "agents" && (
-            <TableWrap>
-              {agents.length === 0 ? <EmptyState icon="👥" title="No agents registered yet" /> : (
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <thead><tr>{["Agent Name", "Email", "Phone", "Area", "Landlords", "Houses", "Joined"].map(h => <Th key={h}>{h}</Th>)}</tr></thead>
-                  <tbody>
-                    {agents.map(a => (
-                      <tr key={a.id}>
-                        <Td bold>{a.full_name}</Td>
-                        <Td muted>{a.email}</Td>
-                        <Td muted>{a.phone}</Td>
-                        <Td muted>{a.assigned_area || "—"}</Td>
-                        <td style={{ padding: "12px 16px", borderTop: "1px solid #f1f5f9" }}><Badge label={a.total_landlords} bg="#eff6ff" color="#2563eb" /></td>
-                        <td style={{ padding: "12px 16px", borderTop: "1px solid #f1f5f9" }}><Badge label={a.total_houses} bg="#f0fdf4" color="#16a34a" /></td>
-                        <Td muted nowrap>{new Date(a.created_at).toLocaleDateString()}</Td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </TableWrap>
-          )}
+          {/* ── AGENTS ── */}
+{tab === "agents" && (
+  <>
+    {/* Header */}
+    <div style={{
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 16
+    }}>
+      <h2 style={{ fontSize: 18, fontWeight: 700 }}>Housing Agents</h2>
+
+      <button
+        onClick={() => setShowCreateAgent(true)}
+        style={{
+          background: "#2563eb",
+          color: "#fff",
+          border: "none",
+          borderRadius: 8,
+          padding: "8px 16px",
+          cursor: "pointer",
+          fontWeight: 600
+        }}
+      >
+        + Create Agent
+      </button>
+    </div>
+
+    {agentError && (
+      <p style={{ color: "#dc2626", marginBottom: 12 }}>{agentError}</p>
+    )}
+
+    {/* Table */}
+    <TableWrap>
+      {agents.length === 0 ? (
+        <EmptyState icon="👥" title="No agents registered yet" />
+      ) : (
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr>
+              {["Agent Name", "Email", "Phone", "Area", "Joined"].map(h => (
+                <Th key={h}>{h}</Th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {agents.map(a => (
+              <tr key={a.id}>
+                <Td bold>{a.full_name}</Td>
+                <Td>{a.email}</Td>
+                <Td>{a.phone}</Td>
+                <Td>{a.assigned_area || "—"}</Td>
+                <Td muted nowrap>
+                  {new Date(a.created_at).toLocaleDateString()}
+                </Td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </TableWrap>
+
+    {/* MODAL */}
+    {showCreateAgent && (
+      <div
+        onClick={() => setShowCreateAgent(false)}
+        style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(0,0,0,0.4)",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          zIndex: 2000
+        }}
+      >
+        <div
+          onClick={e => e.stopPropagation()}
+          style={{
+            background: "#fff",
+            padding: 24,
+            borderRadius: 12,
+            width: 400
+          }}
+        >
+          <h3 style={{ marginBottom: 16 }}>Create New Agent</h3>
+
+          <form onSubmit={handleCreateAgent}>
+            {["full_name", "email", "phone", "password", "assigned_area"].map(field => (
+              <div key={field} style={{ marginBottom: 12 }}>
+                <input
+                  type={field === "password" ? "password" : "text"}
+                  placeholder={field.replace("_", " ")}
+                  value={newAgent[field]}
+                  onChange={e =>
+                    setNewAgent({ ...newAgent, [field]: e.target.value })
+                  }
+                  required={field !== "assigned_area"}
+                  style={{
+                    width: "100%",
+                    padding: 8,
+                    borderRadius: 6,
+                    border: "1px solid #e2e8f0"
+                  }}
+                />
+              </div>
+            ))}
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => setShowCreateAgent(false)}
+                style={{
+                  padding: "8px 14px",
+                  borderRadius: 6,
+                  border: "1px solid #ccc"
+                }}
+              >
+                Cancel
+              </button>
+
+              <button
+                type="submit"
+                style={{
+                  padding: "8px 14px",
+                  borderRadius: 6,
+                  background: "#2563eb",
+                  color: "#fff",
+                  border: "none"
+                }}
+              >
+                Create
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    )}
+  </>
+)}
 
           {/* ── REPORTS ── */}
           {tab === "reports" && <ReportsTab />}

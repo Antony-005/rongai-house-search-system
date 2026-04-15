@@ -100,6 +100,7 @@ export default function AgentDashboard() {
   const [paymentsTotal, setPaymentsTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
+  const [agentBookings, setAgentBookings] = useState([]);
 
   // Modals
   const [showAddLandlord, setShowAddLandlord] = useState(false);
@@ -110,9 +111,9 @@ export default function AgentDashboard() {
   // Forms
   const [landlordForm, setLandlordForm] = useState({ full_name: "", phone: "", email: "" });
   const [houseForm, setHouseForm] = useState({
-    landlord_id: "", title: "", location: "", price: "",
-    bedrooms: "", bathrooms: "", description: ""
-  });
+  landlord_id: "", title: "", location: "", price: "",
+  bedrooms: "", bathrooms: "", description: "", image: null
+});
   const [paymentForm, setPaymentForm] = useState({
     landlord_id: "", amount: "", description: ""
   });
@@ -143,10 +144,23 @@ export default function AgentDashboard() {
     if (resS.ok) setPaymentSummary(dataS.summary);
   };
 
+  const fetchAgentBookings = async () => {
+  try {
+    const res = await fetch(`${API}/agent/bookings`, {
+      headers: authHeaders()
+    });
+    const data = await res.json();
+    if (res.ok) setAgentBookings(data);
+  } catch (err) {
+    console.error("Failed to fetch bookings", err);
+  }
+};
+
   useEffect(() => {
     fetchLandlords();
     fetchHouses();
     fetchPayments();
+    fetchAgentBookings();
   }, []);
 
   // ── Landlord submit ───────────────────────────────────────────────────────────
@@ -169,23 +183,43 @@ export default function AgentDashboard() {
   };
 
   // ── House submit ──────────────────────────────────────────────────────────────
-  const handleAddHouse = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      const res = await fetch(`${API}/agent/houses`, {
-        method: "POST", headers: authHeaders(), body: JSON.stringify(houseForm)
+const handleAddHouse = async (e) => {
+  e.preventDefault();
+  setLoading(true);
+  try {
+    const formData = new FormData();
+    formData.append("landlord_id", houseForm.landlord_id);
+    formData.append("title",       houseForm.title);
+    formData.append("location",    houseForm.location);
+    formData.append("price",       houseForm.price);
+    formData.append("bedrooms",    houseForm.bedrooms);
+    formData.append("bathrooms",   houseForm.bathrooms);
+    formData.append("description", houseForm.description);
+    if (houseForm.image) formData.append("image", houseForm.image);
+
+    const res = await fetch(`${API}/agent/houses`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      // Do NOT include Content-Type — browser sets it automatically for FormData
+      body: formData,
+    });
+    const data = await res.json();
+    if (res.ok) {
+      notify("House listing added successfully!");
+      setShowAddHouse(false);
+      setHouseForm({
+        landlord_id: "", title: "", location: "", price: "",
+        bedrooms: "", bathrooms: "", description: "", image: null
       });
-      const data = await res.json();
-      if (res.ok) {
-        notify("House listing added! Awaiting admin verification.");
-        setShowAddHouse(false);
-        setHouseForm({ landlord_id: "", title: "", location: "", price: "", bedrooms: "", bathrooms: "", description: "" });
-        fetchHouses();
-      } else notify(data.message || "Error.", "error");
-    } catch { notify("Network error.", "error"); }
-    setLoading(false);
-  };
+      fetchHouses();
+    } else {
+      notify(data.error || data.message || "Failed to add house.", "error");
+    }
+  } catch {
+    notify("Network error.", "error");
+  }
+  setLoading(false);
+};
 
   // ── House update ──────────────────────────────────────────────────────────────
   const handleUpdateHouse = async (e) => {
@@ -235,6 +269,28 @@ export default function AgentDashboard() {
     setLoading(false);
   };
 
+  const handleBookingAction = async (bookingId, status) => {
+  try {
+    const res = await fetch(
+      `${API}/agent/bookings/${bookingId}/status`,
+      {
+        method: "PATCH",
+        headers: authHeaders(),
+        body: JSON.stringify({ status }),
+      }
+    );
+
+    if (!res.ok) throw new Error("Action failed");
+
+    notify(`Booking ${status}`);
+    fetchAgentBookings();
+    fetchHouses(); // refresh house status too
+  } catch (err) {
+    console.error(err);
+    notify("Failed to update booking", "error");
+  }
+};
+
   // ── Computed stats ────────────────────────────────────────────────────────────
   const verifiedCount = houses.filter(h => h.is_verified).length;
   const pendingCount = houses.filter(h => !h.is_verified && h.status !== "inactive").length;
@@ -251,6 +307,7 @@ export default function AgentDashboard() {
     { key: "landlords", label: "👤 Landlords" },
     { key: "listings", label: "🏡 My Listings" },
     { key: "payments", label: "💰 Payments" },
+    { key: "bookings", label: "📅 Bookings" },
   ];
 
   // ── Render ────────────────────────────────────────────────────────────────────
@@ -296,10 +353,10 @@ export default function AgentDashboard() {
           {/* Page header */}
           <div style={{ marginBottom: 28 }}>
             <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: "#1a1a2e" }}>
-              {{ overview: "Dashboard Overview", landlords: "Landlord Management", listings: "My House Listings", payments: "Payment Records" }[tab]}
+              {{ overview: "Dashboard Overview", landlords: "Landlord Management", listings: "My House Listings", payments: "Payment Records", bookings: "Booking Requests" }[tab]}
             </h1>
             <p style={{ margin: "4px 0 0", color: "#64748b", fontSize: 14 }}>
-              {{ overview: "Your activity at a glance", landlords: "Manage your recruited landlords", listings: "Add and manage property listings", payments: "Track landlord payments you have collected" }[tab]}
+              {{ overview: "Your activity at a glance", landlords: "Manage your recruited landlords", listings: "Add and manage property listings", payments: "Track landlord payments you have collected", bookings: "Approve or reject resident booking requests" }[tab]}
             </p>
           </div>
 
@@ -523,6 +580,106 @@ export default function AgentDashboard() {
           )}
         </main>
       </div>
+      {/* ── BOOKINGS TAB ── */}
+{tab === "bookings" && (
+  <>
+    <div style={{
+      background: "#fff",
+      borderRadius: 12,
+      overflow: "hidden",
+      boxShadow: "0 2px 12px rgba(0,0,0,0.06)"
+    }}>
+      {agentBookings.length === 0 ? (
+        <EmptyState
+          icon="📅"
+          title="No booking requests"
+          subtitle="Residents will appear here when they request bookings."
+        />
+      ) : (
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr style={{ background: "#f8fafc" }}>
+              {["House", "Resident", "Phone", "Notes", "Date", "Status", "Action"].map(h => (
+                <th key={h} style={{
+                  padding: "12px 16px",
+                  textAlign: "left",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: "#64748b",
+                  textTransform: "uppercase"
+                }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {agentBookings.map(b => (
+              <tr key={b.id} style={{ borderTop: "1px solid #f1f5f9" }}>
+                <td style={{ padding: "13px 16px" }}>{b.house_title}</td>
+                <td style={{ padding: "13px 16px" }}>{b.resident_name}</td>
+                <td style={{ padding: "13px 16px" }}>{b.resident_phone}</td>
+                <td style={{ padding: "13px 16px" }}>{b.notes || "—"}</td>
+                <td style={{ padding: "13px 16px" }}>
+                  {new Date(b.booking_date).toLocaleDateString()}
+                </td>
+                <td style={{ padding: "13px 16px" }}>
+                  <span style={{
+                    padding: "4px 10px",
+                    borderRadius: 20,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    background:
+                      b.status === "approved" ? "#dcfce7" :
+                      b.status === "rejected" ? "#fee2e2" : "#fef9c3",
+                    color:
+                      b.status === "approved" ? "#16a34a" :
+                      b.status === "rejected" ? "#dc2626" : "#ca8a04"
+                  }}>
+                    {b.status}
+                  </span>
+                </td>
+                <td style={{ padding: "13px 16px" }}>
+                  {b.status === "pending" ? (
+                    <>
+                      <button
+                        onClick={() => handleBookingAction(b.id, "approved")}
+                        style={{
+                          background: "#16a34a",
+                          color: "#fff",
+                          border: "none",
+                          borderRadius: 6,
+                          padding: "5px 10px",
+                          marginRight: 6,
+                          cursor: "pointer"
+                        }}
+                      >
+                        Approve
+                      </button>
+                      <button
+                        onClick={() => handleBookingAction(b.id, "rejected")}
+                        style={{
+                          background: "#dc2626",
+                          color: "#fff",
+                          border: "none",
+                          borderRadius: 6,
+                          padding: "5px 10px",
+                          cursor: "pointer"
+                        }}
+                      >
+                        Reject
+                      </button>
+                    </>
+                  ) : (
+                    "—"
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  </>
+)}
 
       {/* ── ADD LANDLORD MODAL ── */}
       {showAddLandlord && (
@@ -570,11 +727,27 @@ export default function AgentDashboard() {
                 onChange={e => setHouseForm({ ...houseForm, bathrooms: e.target.value })} />
             </div>
             <div style={{ marginBottom: 14 }}>
-              <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#555", marginBottom: 5 }}>Description</label>
-              <textarea value={houseForm.description} rows={3}
-                onChange={e => setHouseForm({ ...houseForm, description: e.target.value })}
-                style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontSize: 14, boxSizing: "border-box", resize: "vertical" }} />
-            </div>
+  <label style={{
+    display: "block", fontSize: 13, fontWeight: 600,
+    color: "#555", marginBottom: 5
+  }}>
+    House Image <span style={{ color: "#94a3b8", fontWeight: 400 }}>(optional)</span>
+  </label>
+  <input
+    type="file"
+    accept="image/jpeg,image/png,image/webp"
+    onChange={e => setHouseForm({ ...houseForm, image: e.target.files[0] })}
+    style={{
+      width: "100%", padding: "8px 0", fontSize: 13,
+      color: "#475569", cursor: "pointer"
+    }}
+  />
+  {houseForm.image && (
+    <p style={{ fontSize: 12, color: "#16a34a", marginTop: 4 }}>
+      ✓ {houseForm.image.name} selected
+    </p>
+  )}
+</div>
             <button type="submit" disabled={loading} style={{
               width: "100%", padding: "11px", background: "#4361ee", color: "#fff",
               border: "none", borderRadius: 8, fontSize: 15, fontWeight: 600, cursor: "pointer"
